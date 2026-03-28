@@ -115,6 +115,17 @@ LIMIT 10
     ''')
             return cur.fetchall()  
     
+    def get_winners_img(self, user_id):
+        conn = sqlite3.connect(self.database)
+        with conn:
+            cur = conn.cursor()
+            cur.execute(''' 
+SELECT image FROM winners 
+INNER JOIN prizes ON 
+winners.prize_id = prizes.prize_id
+WHERE user_id = ?''', (user_id, ))
+            return cur.fetchall()
+
   
 def hide_img(img_name):
     image = cv2.imread(f'img/{img_name}')

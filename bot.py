@@ -5,6 +5,10 @@ import schedule
 import threading
 import time
 from config import *
+import cv2
+import numpy as np
+import os
+from math import sqrt, ceil, floor
 
 bot = TeleBot(API_TOKEN)
 
@@ -35,7 +39,7 @@ def send_message():
         
 
 def shedule_thread():
-    schedule.every().minute.do(send_message) # Здесь ты можешь задать периодичность отправки картинок
+    schedule.every().minute.do(send_message)
     while True:
         schedule.run_pending()
         time.sleep(1)
@@ -63,7 +67,21 @@ def handle_rating(message):
     bot.send_message(message.chat.id, res)
     
     
+@bot.message_handler(commands=['get_my_score'])
+def get_my_score(message):
+    user_id = message.chat.id
+    m = DatabaseManager(DATABASE)
+    info = m.get_winners_img(user_id)
+    prizes = [x[0] for x in info]
+    image_paths = os.listdir('img')
+    image_paths = [f'img/{x}' if x in prizes else f'hidden_img/{x}' for x in image_paths]
+    collage = create_collage(image_paths)
     
+    cv2.imwrite('collage.jpg', collage)
+    
+    with open('collage.jpg', 'rb') as photo:
+        bot.send_photo(message.chat.id, photo)
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
 
@@ -83,8 +101,29 @@ def callback_query(call):
         
 
 
+def create_collage(image_paths):
+    images = []
+    for path in image_paths:
+        image = cv2.imread(path)
+        images.append(image)
+
+    num_images = len(images)
+    num_cols = floor(sqrt(num_images))
+    num_rows = ceil(num_images/num_cols)
+    collage = np.zeros((num_rows * images[0].shape[0], num_cols * images[0].shape[1], 3), dtype=np.uint8)
+    for i, image in enumerate(images):
+        row = i // num_cols
+        col = i % num_cols
+        collage[row*image.shape[0]:(row+1)*image.shape[0], col*image.shape[1]:(col+1)*image.shape[1], :] = image
+    return collage
+
 def polling_thread():
-    bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
+    while True:
+        try:
+            bot.polling(none_stop=True, timeout=300, long_polling_timeout=300)
+        except Exception as e:
+            print(f"Ошибка при подключении к Telegram API: {e}")
+            time.sleep(15)
 
 if __name__ == '__main__':
     manager = DatabaseManager(DATABASE)
